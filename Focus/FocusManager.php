@@ -129,6 +129,7 @@ class FocusManager
     public function clear(): static
     {
         $this->focusables = [];
+        $this->setFocus(null);
 
         return $this;
     }

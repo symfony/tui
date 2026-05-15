@@ -46,13 +46,21 @@ use Symfony\Component\Tui\Widget\Figlet\FigletRenderer;
  * width.
  *
  * Because the content is not sanitized, **never pass untrusted input
- * directly to setText() or the constructor** — a hostile string can inject
+ * directly to setText() or the constructor**. A hostile string can inject
  * OSC sequences (terminal title, hyperlinks), CSI sequences that hide or
  * reposition surrounding output, or other escape-driven misbehavior. Sanitize
  * upstream (e.g. via {@see Util\StringUtils::stripControlBytes()})
- * before passing user-supplied data here. Other text-bearing widgets
- * (InputWidget, EditorWidget, MarkdownWidget, SettingItem, ProgressBarWidget::setMessage())
- * sanitize on input and do not have this caveat.
+ * before passing user-supplied data here.
+ *
+ * The same raw-passthrough contract applies to these other surfaces:
+ *  - SelectListWidget items (label, description, value)
+ *  - SettingItem $label and $description constructor arguments
+ *  - InputWidget::setPrompt()
+ *
+ * Sanitizing widgets (which call StringUtils::stripControlBytes on input):
+ * InputWidget::setValue, EditorWidget/EditorDocument, MarkdownWidget,
+ * SettingItem::$currentValue, ProgressBarWidget::setMessage,
+ * LoaderWidget::setMessage.
  *
  * @experimental
  *

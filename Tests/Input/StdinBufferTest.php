@@ -416,4 +416,39 @@ class StdinBufferTest extends TestCase
         $buffer->process('A');
         $this->assertSame([bin2hex("\x1b[1;5A")], $sequences);
     }
+
+    public function testUnterminatedPasteAbortsAtCap()
+    {
+        $buffer = new StdinBuffer();
+        $sequences = [];
+        $pastes = [];
+
+        $buffer->onData(static function (string $data) use (&$sequences) { $sequences[] = $data; });
+        $buffer->onPaste(static function (string $data) use (&$pastes) { $pastes[] = $data; });
+
+        $buffer->process("\x1b[200~");
+        $buffer->process(str_repeat('A', 17 * 1024 * 1024));
+
+        $this->assertSame([], $sequences);
+        $this->assertSame(['[paste exceeded 16 MiB limit]'], $pastes);
+
+        $buffer->process('B');
+        $this->assertSame(['B'], $sequences, 'Buffer should accept new input after abort');
+    }
+
+    public function testUnterminatedOscAbortsAtCap()
+    {
+        $buffer = new StdinBuffer();
+        $sequences = [];
+
+        $buffer->onData(static function (string $data) use (&$sequences) { $sequences[] = $data; });
+
+        $buffer->process("\x1b]0;");
+        $buffer->process(str_repeat('A', 2 * 1024 * 1024));
+
+        $this->assertSame([], $sequences);
+
+        $buffer->process('B');
+        $this->assertSame(['B'], $sequences, 'Buffer should accept new input after abort');
+    }
 }

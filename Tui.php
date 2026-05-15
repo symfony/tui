@@ -500,11 +500,13 @@ class Tui implements RenderRequestorInterface, TickRuntimeInterface
 
     private function invokeTickCallback(float $deltaTime): ?bool
     {
+        $event = new TickEvent($deltaTime);
+        $this->eventDispatcher->dispatch($event);
+
         if (null === $this->onTick) {
-            return null;
+            return $event->hasBusyHint() ? $event->isBusy() : null;
         }
 
-        $event = new TickEvent($deltaTime);
         $result = ($this->onTick)($event);
 
         if (\is_bool($result)) {

@@ -382,6 +382,34 @@ class ProgressBarTest extends TestCase
         $this->assertTrue($bar->tick());
     }
 
+    public function testTickAdvancesIndeterminateBar()
+    {
+        $bar = new ProgressBarWidget();
+        $bar->setBarWidth(10);
+        $bar->start();
+
+        $offsets = [$bar->getBarOffset()];
+        for ($i = 0; $i < 5; ++$i) {
+            $bar->tick();
+            $offsets[] = $bar->getBarOffset();
+        }
+
+        $this->assertSame([0, 1, 2, 3, 4, 5], $offsets);
+    }
+
+    public function testTickDoesNotAdvanceDeterminateBar()
+    {
+        $bar = new ProgressBarWidget(100);
+        $bar->setProgress(42);
+        $bar->start(startAt: 42);
+
+        $before = $bar->getProgress();
+        $bar->tick();
+        $bar->tick();
+
+        $this->assertSame($before, $bar->getProgress());
+    }
+
     public function testSubElementStylesFromStylesheet()
     {
         $terminal = new VirtualTerminal(80, 24);

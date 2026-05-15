@@ -15,9 +15,14 @@ use Symfony\Component\Tui\Ansi\AnsiUtils;
 use Symfony\Component\Tui\Exception\InvalidArgumentException;
 use Symfony\Component\Tui\Loop\PeriodicStepper;
 use Symfony\Component\Tui\Render\RenderContext;
+use Symfony\Component\Tui\Widget\Util\StringUtils;
 
 /**
  * Animated loading spinner.
+ *
+ * Newly constructed loaders are stopped; call {@see start()} to begin
+ * the animation. Attaching a stopped loader to the widget tree does not
+ * schedule any ticks until start() is called.
  *
  * @experimental
  *
@@ -50,12 +55,14 @@ class LoaderWidget extends AbstractWidget
     private bool $finished = false;
     private PeriodicStepper $frameStepper;
 
+    private string $message;
+
     public function __construct(
-        private string $message = 'Loading...',
+        string $message = 'Loading...',
     ) {
+        $this->message = StringUtils::stripControlBytes(StringUtils::sanitizeUtf8($message));
         $this->frames = self::$styles[self::DEFAULT_STYLE];
         $this->frameStepper = PeriodicStepper::everyMs(self::DEFAULT_INTERVAL_MS, 8);
-        $this->start();
     }
 
     /**
@@ -81,14 +88,13 @@ class LoaderWidget extends AbstractWidget
      */
     public function stop(): void
     {
-        if (!$this->running) {
-            return;
-        }
-
+        $wasRunning = $this->running;
         $this->running = false;
         $this->finished = true;
 
-        $this->clearScheduledTick();
+        if ($wasRunning) {
+            $this->clearScheduledTick();
+        }
 
         $this->invalidate();
         $this->getContext()?->requestRender();
@@ -107,6 +113,8 @@ class LoaderWidget extends AbstractWidget
      */
     public function setMessage(string $message): static
     {
+        $message = StringUtils::stripControlBytes(StringUtils::sanitizeUtf8($message));
+
         if ($this->message !== $message) {
             $this->message = $message;
             $this->invalidate();

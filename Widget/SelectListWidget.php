@@ -22,6 +22,11 @@ use Symfony\Component\Tui\Render\RenderContext;
 /**
  * Interactive selection list with keyboard navigation.
  *
+ * Item `label`, `description`, and `value` are rendered to the terminal
+ * as-is and are not sanitized. See {@see TextWidget} for the raw-passthrough
+ * contract: never pass untrusted bytes here; sanitize upstream via
+ * {@see Util\StringUtils::stripControlBytes()}.
+ *
  * @experimental
  *
  * @author Fabien Potencier <fabien@symfony.com>

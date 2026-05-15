@@ -34,6 +34,8 @@ use Symfony\Component\Tui\Exception\InvalidArgumentException;
  */
 final class FigletFont
 {
+    private const int MAX_DECOMPRESSED_BYTES = 4 * 1024 * 1024;
+
     /** @var array<int, string[]> codepoint → array of lines */
     private array $characters = [];
 
@@ -190,8 +192,17 @@ final class FigletFont
             for ($i = 0; $i < $zip->numFiles; ++$i) {
                 $name = $zip->getNameIndex($i);
                 if (false !== $name && str_ends_with($name, '.flf')) {
-                    $content = $zip->getFromIndex($i);
+                    $stat = $zip->statIndex($i);
+                    if (false !== $stat && isset($stat['size']) && $stat['size'] > self::MAX_DECOMPRESSED_BYTES) {
+                        throw new InvalidArgumentException(\sprintf('FIGlet font entry "%s" inside ZIP archive "%s" is too large.', $name, $path));
+                    }
+
+                    $content = $zip->getFromIndex($i, self::MAX_DECOMPRESSED_BYTES + 1);
                     if (false !== $content) {
+                        if (\strlen($content) > self::MAX_DECOMPRESSED_BYTES) {
+                            throw new InvalidArgumentException(\sprintf('FIGlet font entry "%s" inside ZIP archive "%s" is too large.', $name, $path));
+                        }
+
                         return $content;
                     }
                 }

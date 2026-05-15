@@ -17,6 +17,11 @@ use Symfony\Component\Tui\Widget\FocusableInterface;
 /**
  * Event dispatched when focus changes to a new widget.
  *
+ * Not dispatched when focus is cleared to null. Listeners that need
+ * to know when focus is lost can observe widget removal directly or
+ * track the previous focus via {@see getPrevious()} on subsequent
+ * focus-change events.
+ *
  * @experimental
  *
  * @author Fabien Potencier <fabien@symfony.com>

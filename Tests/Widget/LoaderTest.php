@@ -25,6 +25,7 @@ class LoaderTest extends TestCase
     public function testRenderIncludesBlankLine()
     {
         $loader = new LoaderWidget(message: 'Test');
+        $loader->start();
 
         $lines = $loader->render(new RenderContext(80, 24));
 
@@ -36,6 +37,7 @@ class LoaderTest extends TestCase
     public function testRenderIncludesSpinnerAndMessage()
     {
         $loader = new LoaderWidget(message: 'Working...');
+        $loader->start();
 
         $lines = $loader->render(new RenderContext(80, 24));
         $content = implode('', $lines);
@@ -52,6 +54,7 @@ class LoaderTest extends TestCase
         // from the stylesheet when rendered with a Tui context
         $terminal = new VirtualTerminal(80, 24);
         $loader = new LoaderWidget(message: 'Test');
+        $loader->start();
 
         $stylesheet = new StyleSheet([
             LoaderWidget::class.'::spinner' => new Style()->withBold(),
@@ -72,6 +75,7 @@ class LoaderTest extends TestCase
     public function testSetSpinnerStyle()
     {
         $loader = new LoaderWidget(message: 'Test');
+        $loader->start();
         $loader->setSpinner('line');
 
         $lines = $loader->render(new RenderContext(80, 24));
@@ -95,6 +99,7 @@ class LoaderTest extends TestCase
         LoaderWidget::addSpinner('custom', ['A', 'B', 'C']);
 
         $loader = new LoaderWidget(message: 'Test');
+        $loader->start();
         $loader->setSpinner('custom');
 
         $lines = $loader->render(new RenderContext(80, 24));
@@ -155,6 +160,7 @@ class LoaderTest extends TestCase
         $loader = new LoaderWidget(message: 'Test');
         $loader->setSpinner('line');
         $loader->setIntervalMs(80);
+        $loader->start();
 
         $loader->tick(0.24);
         $this->assertSame('/', $loader->getSpinnerFrame());
@@ -174,9 +180,21 @@ class LoaderTest extends TestCase
         $terminal = new VirtualTerminal(80, 24);
         $tui = new Tui(terminal: $terminal);
         $loader = new LoaderWidget();
+        $loader->start();
         $tui->add($loader);
 
         $this->assertNotNull($this->getScheduledTickId($loader));
+    }
+
+    public function testNotStartedLoaderDoesNotScheduleTickOnAttach()
+    {
+        $terminal = new VirtualTerminal(80, 24);
+        $tui = new Tui(terminal: $terminal);
+        $loader = new LoaderWidget();
+        $tui->add($loader);
+
+        $this->assertNull($this->getScheduledTickId($loader));
+        $this->assertFalse($loader->isRunning());
     }
 
     public function testDetachClearsScheduledTickId()
@@ -184,6 +202,7 @@ class LoaderTest extends TestCase
         $terminal = new VirtualTerminal(80, 24);
         $tui = new Tui(terminal: $terminal);
         $loader = new LoaderWidget();
+        $loader->start();
         $tui->add($loader);
         $this->assertNotNull($this->getScheduledTickId($loader));
 
@@ -196,6 +215,7 @@ class LoaderTest extends TestCase
         $terminal = new VirtualTerminal(80, 24);
         $tui = new Tui(terminal: $terminal);
         $loader = new LoaderWidget();
+        $loader->start();
         $tui->add($loader);
 
         $firstId = $this->getScheduledTickId($loader);
@@ -206,6 +226,21 @@ class LoaderTest extends TestCase
         $secondId = $this->getScheduledTickId($loader);
         $this->assertNotNull($secondId);
         $this->assertNotSame($firstId, $secondId);
+    }
+
+    public function testSetMessageStripsControlBytes()
+    {
+        $loader = new LoaderWidget(message: 'init');
+        $loader->setMessage("evil\x1b[31mred\x07bell");
+
+        $this->assertSame('evil[31mredbell', $loader->getMessage());
+    }
+
+    public function testConstructorStripsControlBytes()
+    {
+        $loader = new LoaderWidget(message: "evil\x1b[31mred");
+
+        $this->assertSame('evil[31mred', $loader->getMessage());
     }
 
     private function getScheduledTickId(LoaderWidget $loader): ?string

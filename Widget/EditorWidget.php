@@ -203,7 +203,7 @@ class EditorWidget extends AbstractWidget implements FocusableInterface, Vertica
             if ('' === $data) {
                 return;
             }
-        } elseif ($this->isBufferingPaste()) {
+        } elseif ('' === $data && $this->isBufferingPaste()) {
             return;
         }
 
@@ -561,9 +561,10 @@ class EditorWidget extends AbstractWidget implements FocusableInterface, Vertica
             'insert_space' => ['shift+space'],
             'new_line' => ['shift+enter'],
             'submit' => [Key::ENTER],
-            'select_cancel' => [Key::ESCAPE, 'ctrl+c'],
+            'select_cancel' => [Key::ESCAPE],
 
-            // Clipboard
+            // Clipboard (leave to parent: ctrl+c is the conventional copy / abort
+            // signal; the editor itself does not implement a selection model).
             'copy' => ['ctrl+c'],
 
             // Kill ring
@@ -573,9 +574,6 @@ class EditorWidget extends AbstractWidget implements FocusableInterface, Vertica
             // Undo/Redo
             'undo' => ['ctrl+-'],
             'redo' => ['ctrl+shift+z'],
-
-            // Tool output
-            'expand_tools' => ['ctrl+o'],
         ];
     }
 

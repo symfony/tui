@@ -73,6 +73,35 @@ class BracketedPasteTraitTest extends TestCase
         $this->assertSame('extra input', $data);
     }
 
+    public function testDataBeforeStartMarkerIsPreserved()
+    {
+        $handler = $this->createHandler();
+
+        $data = "AAA\x1b[200~pasted\x1b[201~BBB";
+        $result = $handler->processBracketedPaste($data);
+
+        $this->assertSame('pasted', $result);
+        $this->assertSame('AAABBB', $data);
+        $this->assertFalse($handler->isBufferingPaste());
+    }
+
+    public function testDataBeforeStartMarkerWithoutEndIsPreservedAsPrefix()
+    {
+        $handler = $this->createHandler();
+
+        $data = "AAA\x1b[200~partial";
+        $result = $handler->processBracketedPaste($data);
+
+        $this->assertNull($result);
+        $this->assertSame('AAA', $data);
+        $this->assertTrue($handler->isBufferingPaste());
+
+        $data = "rest\x1b[201~";
+        $result = $handler->processBracketedPaste($data);
+        $this->assertSame('partialrest', $result);
+        $this->assertSame('', $data);
+    }
+
     public function testNoPasteMarkers()
     {
         $handler = $this->createHandler();
@@ -143,6 +172,26 @@ class BracketedPasteTraitTest extends TestCase
         $data = "\x1b[200~second\x1b[201~";
         $result = $handler->processBracketedPaste($data);
         $this->assertSame('second', $result);
+    }
+
+    public function testUnterminatedPasteAbortsAtCap()
+    {
+        $handler = $this->createHandler();
+
+        $data = "\x1b[200~";
+        $handler->processBracketedPaste($data);
+        $this->assertTrue($handler->isBufferingPaste());
+
+        $data = str_repeat('A', 17 * 1024 * 1024);
+        $result = $handler->processBracketedPaste($data);
+
+        $this->assertSame('[paste exceeded 16 MiB limit]', $result);
+        $this->assertFalse($handler->isBufferingPaste());
+
+        $data = 'plain';
+        $result = $handler->processBracketedPaste($data);
+        $this->assertNull($result);
+        $this->assertSame('plain', $data);
     }
 
     private function createHandler(): BracketedPasteHandler

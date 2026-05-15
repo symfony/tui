@@ -25,6 +25,9 @@ namespace Symfony\Component\Tui\Widget;
  */
 trait BracketedPasteTrait
 {
+    private const int MAX_PASTE_BYTES = 16 * 1024 * 1024;
+    private const string PASTE_OVERFLOW_MESSAGE = '[paste exceeded 16 MiB limit]';
+
     private bool $inPaste = false;
     private string $pasteBuffer = '';
 
@@ -37,26 +40,36 @@ trait BracketedPasteTrait
      * Process bracketed paste sequences in input data.
      *
      * Detects paste start/end markers and buffers content across
-     * multiple input chunks. Modifies $data in place to remove
-     * paste markers and consumed content.
+     * multiple input chunks. Modifies $data in place to leave the
+     * caller with the non-paste portion of the chunk: any bytes that
+     * preceded the start marker, plus any bytes after the end marker.
+     * Returns the complete pasted text when the end marker is
+     * received, or null when still buffering.
      *
-     * @param string $data Input data; modified to contain only the portion
-     *                     after the paste end marker (if any), or emptied
-     *                     if still buffering
+     * @param string $data Input data; on return contains the non-paste
+     *                     bytes (prefix and/or suffix), or '' while
+     *                     buffering or when the chunk was paste-only
      *
      * @return string|null The complete pasted text when the end marker is
-     *                     received, or null if still buffering
+     *                     received, or null if still buffering or if no
+     *                     paste is in progress. If a paste exceeds the
+     *                     internal cap, {@see PASTE_OVERFLOW_MESSAGE} is
+     *                     returned in lieu of the partial content so the
+     *                     caller can surface a visible notice.
      */
     private function processBracketedPaste(string &$data): ?string
     {
-        if (str_contains($data, "\x1b[200~")) {
-            $this->inPaste = true;
-            $this->pasteBuffer = '';
-            $data = str_replace("\x1b[200~", '', $data);
-        }
+        $prefix = '';
 
         if (!$this->inPaste) {
-            return null;
+            if (false === $start = strpos($data, "\x1b[200~")) {
+                return null;
+            }
+
+            $prefix = substr($data, 0, $start);
+            $data = substr($data, $start + 6);
+            $this->inPaste = true;
+            $this->pasteBuffer = '';
         }
 
         if (false !== $endIndex = strpos($data, "\x1b[201~")) {
@@ -64,13 +77,25 @@ trait BracketedPasteTrait
             $pastedText = $this->pasteBuffer;
             $this->inPaste = false;
             $this->pasteBuffer = '';
-            $data = substr($data, $endIndex + 6);
+            $data = $prefix.substr($data, $endIndex + 6);
 
             return $pastedText;
         }
 
         $this->pasteBuffer .= $data;
-        $data = '';
+        $data = $prefix;
+
+        // Cap reached without an end marker: discard the partial paste and
+        // exit paste mode. Returns a visible overflow notice in place of
+        // the partial content so the caller can show the user why their
+        // paste did not land. Defense against unbounded buffering from a
+        // missing/spoofed end marker.
+        if (\strlen($this->pasteBuffer) > self::MAX_PASTE_BYTES) {
+            $this->pasteBuffer = '';
+            $this->inPaste = false;
+
+            return self::PASTE_OVERFLOW_MESSAGE;
+        }
 
         return null;
     }

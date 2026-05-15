@@ -25,6 +25,10 @@ namespace Symfony\Component\Tui\Input;
  */
 final class StdinBuffer
 {
+    private const int MAX_PASTE_BYTES = 16 * 1024 * 1024;
+    private const int MAX_PENDING_BYTES = 1024 * 1024;
+    private const string PASTE_OVERFLOW_MESSAGE = '[paste exceeded 16 MiB limit]';
+
     private string $buffer = '';
 
     /** @var (\Closure(string): void)|null */
@@ -96,6 +100,20 @@ final class StdinBuffer
                     // Still waiting for end marker
                     $this->pasteBuffer .= $this->buffer;
                     $this->buffer = '';
+
+                    // Cap reached without an end marker: discard the partial
+                    // paste and emit a visible overflow notice through the
+                    // paste callback so the user can see why their paste did
+                    // not land. Defense against unbounded buffering from a
+                    // missing/spoofed end marker.
+                    if (\strlen($this->pasteBuffer) > self::MAX_PASTE_BYTES) {
+                        $this->pasteBuffer = '';
+                        $this->inPaste = false;
+
+                        if (null !== $this->onPaste) {
+                            ($this->onPaste)(self::PASTE_OVERFLOW_MESSAGE);
+                        }
+                    }
                 }
                 continue;
             }
@@ -104,7 +122,13 @@ final class StdinBuffer
             $sequence = $this->extractSequence();
 
             if (null === $sequence) {
-                // Buffer might contain incomplete sequence, wait for more data
+                // Buffer might contain incomplete sequence, wait for more data.
+                // If we cross the cap without producing a complete sequence
+                // (e.g. unterminated OSC/DCS), discard the pending buffer
+                // silently to bound memory.
+                if (\strlen($this->buffer) > self::MAX_PENDING_BYTES) {
+                    $this->buffer = '';
+                }
                 break;
             }
 

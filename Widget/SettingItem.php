@@ -17,6 +17,11 @@ use Symfony\Component\Tui\Widget\Util\StringUtils;
 /**
  * Represents a single item in a SettingsListWidget.
  *
+ * The `$label` and `$description` constructor arguments are stored verbatim
+ * and rendered as-is. Only `$currentValue` is sanitized. See {@see TextWidget}
+ * for the raw-passthrough contract: sanitize untrusted label/description
+ * upstream via {@see StringUtils::stripControlBytes()}.
+ *
  * @experimental
  *
  * @author Fabien Potencier <fabien@symfony.com>

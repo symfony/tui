@@ -94,4 +94,21 @@ class FigletFontTest extends TestCase
 
         FigletFont::load('/nonexistent/path/to/font.flf');
     }
+
+    public function testLoadZipRejectsOversizedDecompressedEntry()
+    {
+        $path = tempnam(sys_get_temp_dir(), 'flf_zip_').'.zip';
+        try {
+            $zip = new \ZipArchive();
+            $this->assertTrue(true === $zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE));
+            $zip->addFromString('bomb.flf', str_repeat('A', 5 * 1024 * 1024));
+            $zip->close();
+
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessageMatches('/too large/i');
+            FigletFont::load($path);
+        } finally {
+            @unlink($path);
+        }
+    }
 }

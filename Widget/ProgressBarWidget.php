@@ -438,12 +438,22 @@ class ProgressBarWidget extends AbstractWidget
     }
 
     /**
-     * Tick the animation (for indeterminate mode bouncing).
+     * Tick the animation.
+     *
+     * In indeterminate mode (no max), advances the bar offset by one
+     * cell each tick so the bar visibly bounces. In determinate mode
+     * the offset tracks {@see setProgress()} and tick() only invalidates
+     * the render cache so dependent placeholders ({@see %elapsed%},
+     * {@see %memory%}, etc.) can refresh.
      */
     public function tick(): bool
     {
         if (!$this->running) {
             return false;
+        }
+
+        if (null === $this->max) {
+            ++$this->step;
         }
 
         $this->invalidate();

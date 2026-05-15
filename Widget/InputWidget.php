@@ -92,6 +92,12 @@ class InputWidget extends AbstractWidget implements FocusableInterface
     }
 
     /**
+     * Sets the prompt text rendered before the input field.
+     *
+     * The prompt is stored verbatim and rendered as-is. See {@see TextWidget}
+     * for the raw-passthrough contract: sanitize untrusted input upstream via
+     * {@see StringUtils::stripControlBytes()}.
+     *
      * @return $this
      */
     public function setPrompt(string $prompt): static
@@ -149,7 +155,7 @@ class InputWidget extends AbstractWidget implements FocusableInterface
                 if ('' === $data) {
                     return;
                 }
-            } elseif ($this->isBufferingPaste()) {
+            } elseif ('' === $data && $this->isBufferingPaste()) {
                 return;
             }
 

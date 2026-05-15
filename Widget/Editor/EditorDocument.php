@@ -29,6 +29,8 @@ use Symfony\Component\Tui\Widget\Util\StringUtils;
  */
 final class EditorDocument
 {
+    private const int MAX_UNDO_BYTES = 32 * 1024 * 1024;
+
     /** @var string[] */
     private array $lines = [''];
     private int $cursorLine = 0;
@@ -41,6 +43,7 @@ final class EditorDocument
     private array $undoStack = [];
     /** @var array<int, array{lines: string[], cursor_line: int, cursor_col: int}> */
     private array $redoStack = [];
+    private int $undoStackBytes = 0;
 
     // Character jump mode
     private ?string $jumpMode = null; // 'forward' or 'backward'
@@ -142,6 +145,7 @@ final class EditorDocument
         $this->cursorLine = 0;
         $this->cursorCol = 0;
         $this->undoStack = [];
+        $this->undoStackBytes = 0;
         $this->redoStack = [];
         $this->pasteMarkers = [];
         $this->pasteCount = 0;
@@ -508,6 +512,7 @@ final class EditorDocument
         $this->redoStack[] = $this->createSnapshot();
 
         $snapshot = array_pop($this->undoStack);
+        $this->undoStackBytes -= self::snapshotBytes($snapshot);
         $this->restoreSnapshot($snapshot);
         $this->killRing->resetAll();
 
@@ -520,7 +525,9 @@ final class EditorDocument
             return false;
         }
 
-        $this->undoStack[] = $this->createSnapshot();
+        $snapshot = $this->createSnapshot();
+        $this->undoStack[] = $snapshot;
+        $this->undoStackBytes += self::snapshotBytes($snapshot);
 
         $snapshot = array_pop($this->redoStack);
         $this->restoreSnapshot($snapshot);
@@ -669,13 +676,32 @@ final class EditorDocument
 
     private function pushUndoSnapshot(): void
     {
-        $this->undoStack[] = $this->createSnapshot();
+        $snapshot = $this->createSnapshot();
+        $this->undoStack[] = $snapshot;
+        $this->undoStackBytes += self::snapshotBytes($snapshot);
 
         if (\count($this->undoStack) > 100) {
-            array_shift($this->undoStack);
+            $this->undoStackBytes -= self::snapshotBytes(array_shift($this->undoStack));
+        }
+
+        while ($this->undoStackBytes > self::MAX_UNDO_BYTES && \count($this->undoStack) > 1) {
+            $this->undoStackBytes -= self::snapshotBytes(array_shift($this->undoStack));
         }
 
         $this->redoStack = [];
+    }
+
+    /**
+     * @param array{lines: string[], cursor_line: int, cursor_col: int} $snapshot
+     */
+    private static function snapshotBytes(array $snapshot): int
+    {
+        $bytes = 0;
+        foreach ($snapshot['lines'] as $line) {
+            $bytes += \strlen($line);
+        }
+
+        return $bytes;
     }
 
     /**

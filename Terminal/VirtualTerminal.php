@@ -117,7 +117,7 @@ final class VirtualTerminal implements TerminalInterface
 
     public function setTitle(string $title): void
     {
-        $safe = preg_replace("/[\x00-\x1f\x7f]/", '', $title);
+        $safe = preg_replace("/[\x00-\x1f\x7f]|\xc2[\x80-\x9f]/", '', $title);
         $this->write("\x1b]0;{$safe}\x07");
     }
 

@@ -88,6 +88,7 @@ class VirtualTerminalTest extends TestCase
         yield 'strips BEL character' => ["evil\x07injected", "\x1b]0;evilinjected\x07"];
         yield 'strips ESC character' => ["evil\x1b[31mred", "\x1b]0;evil[31mred\x07"];
         yield 'strips all control characters' => ["a\x00b\x01c\x1fd\x7fe", "\x1b]0;abcde\x07"];
+        yield 'strips UTF-8 C1 controls' => ["evil\xc2\x9cinjected", "\x1b]0;evilinjected\x07"];
         yield 'preserves unicode' => ['✓ Complete! 🎉', "\x1b]0;✓ Complete! 🎉\x07"];
     }
 

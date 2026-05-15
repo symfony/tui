@@ -438,6 +438,23 @@ class EditorDocumentTest extends TestCase
         $this->assertFalse($doc->redo());
     }
 
+    public function testUndoStackIsBoundedByMemoryBudget()
+    {
+        $doc = new EditorDocument();
+        $doc->setText(str_repeat('x', 5 * 1024 * 1024));
+
+        for ($i = 0; $i < 20; ++$i) {
+            $doc->insertText('y');
+        }
+
+        $stack = new \ReflectionProperty($doc, 'undoStack');
+        $entries = $stack->getValue($doc);
+        $this->assertLessThan(10, \count($entries), 'Undo stack should evict snapshots when memory budget is exceeded');
+        $this->assertGreaterThan(0, \count($entries), 'At least one undo snapshot should remain');
+
+        $this->assertTrue($doc->undo());
+    }
+
     // --- Kill Ring ---
 
     public function testYankAndYankPop()
