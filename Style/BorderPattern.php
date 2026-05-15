@@ -20,8 +20,8 @@ use Symfony\Component\Tui\Exception\InvalidArgumentException;
  * for block-style borders:
  * - 0: border color on inner background (standard border rendering)
  * - 1: border color on outer background (blend with outer background)
- * - 2: outer background on border color (inverse left-style border)
- * - 3: inner background on border color (inverse right-style border)
+ * - 2: reverse video border/outer — filled part shows outer bg, empty part shows border color
+ * - 3: reverse video border/inner — filled part shows inner bg, empty part shows border color
  *
  * @experimental
  *
@@ -84,8 +84,8 @@ final class BorderPattern
 
         return match ($strategy) {
             1 => $this->applyColors($segment, $borderColor, $outerBackground, $outerForeground, $outerBackground),
-            2 => $this->applyColors($segment, $outerBackground, $borderColor, $outerForeground, $outerBackground),
-            3 => $this->applyColors($segment, $innerBackground, $borderColor, $outerForeground, $outerBackground),
+            2 => $this->applyColorsReversed($segment, $borderColor, $outerBackground, $outerForeground, $outerBackground),
+            3 => $this->applyColorsReversed($segment, $borderColor, $innerBackground, $outerForeground, $outerBackground),
             default => $this->applyColors($segment, $borderColor, $innerBackground, $outerForeground, $outerBackground),
         };
     }
@@ -421,6 +421,23 @@ final class BorderPattern
         return $this->foregroundCode($foreground)
             .$this->backgroundCode($background)
             .$segment
+            .$this->foregroundCode($outerForeground)
+            .$this->backgroundCode($outerBackground);
+    }
+
+    /**
+     * Like applyColors but uses ANSI reverse video so that borderColor lands in the FG slot.
+     * This ensures null borderColor falls back to the terminal's default text color (visible)
+     * rather than the terminal's default background color (invisible on dark terminals).
+     * The block character's filled portion shows $background, the empty portion shows $foreground.
+     */
+    private function applyColorsReversed(string $segment, ?Color $foreground, ?Color $background, ?Color $outerForeground, ?Color $outerBackground): string
+    {
+        return $this->foregroundCode($foreground)
+            .$this->backgroundCode($background)
+            ."\e[7m"
+            .$segment
+            ."\e[27m"
             .$this->foregroundCode($outerForeground)
             .$this->backgroundCode($outerBackground);
     }
