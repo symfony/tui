@@ -197,11 +197,9 @@ class MarkdownWidget extends AbstractWidget
      */
     private function renderHeading(Heading $heading, int $columns): array
     {
-        $level = $heading->getLevel();
         $text = $this->renderInlineNodes($heading);
-        $prefix = str_repeat('#', $level).' ';
 
-        $styledText = $this->resolveElement('heading')->apply($prefix.$text);
+        $styledText = $this->resolveElement('heading')->apply($text);
 
         return TextWrapper::wrapTextWithAnsi($styledText, $columns);
     }

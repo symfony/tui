@@ -54,7 +54,7 @@ class MarkdownTest extends TestCase
     public static function markdownElementProvider(): iterable
     {
         yield 'plain text' => ['Hello World', 40, ['Hello World']];
-        yield 'heading' => ['# Heading', 40, ['# Heading']];
+        yield 'heading' => ['# Heading', 40, ['Heading']];
         yield 'bold (ANSI code)' => ['This is **bold** text', 60, ["\x1b[1m", 'bold']];
         yield 'italic (ANSI code)' => ['This is *italic* text', 60, ["\x1b[3m"]];
         yield 'inline code' => ['Use `code` here', 60, ['code']];
@@ -64,6 +64,18 @@ class MarkdownTest extends TestCase
         yield 'horizontal rule' => ['---', 40, ['─']];
         yield 'table' => ["| A | B |\n| - | - |\n| 1 | 2 |", 40, ['A', '1', '┌']];
         yield 'link' => ['[Click here](https://example.com)', 60, ['Click here', 'example.com']];
+    }
+
+    public function testRenderUnattachedUsesDefaultElementStyles()
+    {
+        $md = new MarkdownWidget("# Hello\n\nsome **bold** and *italic* text");
+        $lines = $md->render(new RenderContext(60, 24));
+        $content = implode("\n", $lines);
+
+        $this->assertStringContainsString("\x1b[1m", $content);
+        $this->assertStringContainsString("\x1b[3m", $content);
+        $this->assertStringContainsString('Hello', $content);
+        $this->assertStringNotContainsString('# Hello', AnsiUtils::stripAnsiCodes($content));
     }
 
     public function testRenderWithPadding()

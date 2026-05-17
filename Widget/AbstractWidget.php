@@ -14,6 +14,7 @@ namespace Symfony\Component\Tui\Widget;
 use Symfony\Component\Tui\Event\AbstractEvent;
 use Symfony\Component\Tui\Exception\RenderException;
 use Symfony\Component\Tui\Render\RenderContext;
+use Symfony\Component\Tui\Style\DefaultStyleSheet;
 use Symfony\Component\Tui\Style\Style;
 use Symfony\Component\Tui\Style\StyleSheet;
 use Symfony\Component\Tui\Tui;
@@ -33,6 +34,7 @@ abstract class AbstractWidget
     private ?AbstractWidget $parent = null;
     private ?WidgetContext $context = null;
     private ?Style $internalStyle = null;
+    private static ?StyleSheet $defaultStyleSheet = null;
 
     /** @var string[] */
     private array $styleClasses = [];
@@ -421,7 +423,7 @@ abstract class AbstractWidget
     {
         $context = $this->getContext();
         if (null === $context) {
-            return new Style();
+            return (self::$defaultStyleSheet ??= DefaultStyleSheet::create())->resolveElement($this, $element);
         }
 
         return $context->resolveElement($this, $element);
