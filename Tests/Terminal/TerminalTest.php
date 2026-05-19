@@ -16,6 +16,13 @@ use Symfony\Component\Tui\Terminal\Terminal;
 
 class TerminalTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        if ('\\' === \DIRECTORY_SEPARATOR) {
+            $this->markTestSkipped('fireAndForget uses Unix shell syntax and is only invoked on macOS.');
+        }
+    }
+
     public function testFireAndForgetDoesNotBlock()
     {
         $terminal = new Terminal();
