@@ -182,6 +182,10 @@ final class FigletFont
      */
     private static function extractFromZip(string $path): string
     {
+        if (!\extension_loaded('zip')) {
+            throw new InvalidArgumentException('The ZIP extension is required to load FIGlet fonts from ZIP archives.');
+        }
+
         $zip = new \ZipArchive();
 
         if (true !== $zip->open($path)) {

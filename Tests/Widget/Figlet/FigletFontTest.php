@@ -12,6 +12,7 @@
 namespace Symfony\Component\Tui\Tests\Widget\Figlet;
 
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Tui\Exception\InvalidArgumentException;
 use Symfony\Component\Tui\Widget\Figlet\FigletFont;
@@ -95,6 +96,7 @@ class FigletFontTest extends TestCase
         FigletFont::load('/nonexistent/path/to/font.flf');
     }
 
+    #[RequiresPhpExtension('zip')]
     public function testLoadZipRejectsOversizedDecompressedEntry()
     {
         $path = tempnam(sys_get_temp_dir(), 'flf_zip_').'.zip';
