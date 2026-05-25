@@ -48,10 +48,10 @@ final class LayoutEngine
      *
      * @return string[]
      */
-    public function layout(array $children, int $columns, int $rows, int $gap, Direction $direction, ?string $gapLine = null): array
+    public function layout(array $children, int $columns, int $rows, int $gap, Direction $direction, ?string $gapLine = null, ?VerticalAlign $verticalAlign = null): array
     {
         if (Direction::Horizontal === $direction) {
-            return $this->layoutHorizontal($children, $columns, $rows, $gap);
+            return $this->layoutHorizontal($children, $columns, $rows, $gap, $verticalAlign);
         }
 
         return $this->layoutVertical($children, $columns, $rows, $gap, $gapLine);
@@ -76,7 +76,7 @@ final class LayoutEngine
         $availableSpace = max(0, $columns - $maxWidth);
 
         return match ($align) {
-            Align::Center => (int) floor($availableSpace / 2),
+            Align::Center => $availableSpace >> 1,
             Align::Right => $availableSpace,
             Align::Left => 0,
         };
@@ -91,7 +91,7 @@ final class LayoutEngine
 
         return match ($verticalAlign) {
             VerticalAlign::Top => 0,
-            VerticalAlign::Center => (int) floor($space / 2),
+            VerticalAlign::Center => $space >> 1,
             VerticalAlign::Bottom => $space,
         };
     }
@@ -256,7 +256,7 @@ final class LayoutEngine
      *
      * @return string[]
      */
-    private function layoutHorizontal(array $children, int $columns, int $rows, int $gap): array
+    private function layoutHorizontal(array $children, int $columns, int $rows, int $gap, ?VerticalAlign $verticalAlign = null): array
     {
         if (!$count = \count($children)) {
             return [];
@@ -329,13 +329,26 @@ final class LayoutEngine
             return [];
         }
 
-        // Track widget positions for horizontal children
+        // Compute per-child vertical offset for cross-axis alignment (align-items).
+        // This positions shorter children relative to the tallest, analogous to
+        // CSS align-items on a flex row.
+        $childOffsets = [];
+        foreach ($children as $index => $child) {
+            $childHeight = \count($childRenders[$index]);
+            $childOffsets[$index] = match ($verticalAlign) {
+                VerticalAlign::Center => ($maxRows - $childHeight) >> 1,
+                VerticalAlign::Bottom => $maxRows - $childHeight,
+                default => 0,
+            };
+        }
+
+        // Track widget positions for horizontal children, accounting for vertical offsets.
         if ($hasPositionStack) {
             [$absRow, $absCol] = $this->positionTracker->currentOffset();
             $colOffset = 0;
             foreach ($children as $index => $child) {
                 $this->positionTracker->setWidgetRect($child, new WidgetRect(
-                    $absRow,
+                    $absRow + $childOffsets[$index],
                     $absCol + $colOffset,
                     $childColumnCounts[$index],
                     \count($childRenders[$index]),
@@ -350,7 +363,8 @@ final class LayoutEngine
         for ($row = 0; $row < $maxRows; ++$row) {
             $lineParts = [];
             foreach ($children as $index => $child) {
-                $line = $childRenders[$index][$row] ?? '';
+                $childRow = $row - $childOffsets[$index];
+                $line = ($childRow >= 0 && isset($childRenders[$index][$childRow])) ? $childRenders[$index][$childRow] : '';
                 $visibleLen = AnsiUtils::visibleWidth($line);
                 $cols = $childColumnCounts[$index];
 

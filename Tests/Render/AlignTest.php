@@ -258,4 +258,68 @@ final class AlignTest extends TestCase
             $this->assertStringNotContainsString('Hi', AnsiUtils::stripAnsiCodes($lines[$i]));
         }
     }
+
+    public function testVerticalAlignCenterDoesNotExpandNonExpandedNestedContainer()
+    {
+        // A non-expanded container with VerticalAlign::Center must not fill its parent's
+        // row budget — it must use its natural content height only.
+        $renderer = new Renderer(new StyleSheet([
+            '.inner' => new Style(verticalAlign: VerticalAlign::Center),
+        ]));
+
+        $root = new ContainerWidget();
+
+        $inner = new ContainerWidget();
+        $inner->addStyleClass('inner');
+        $inner->add(new TextWidget('A'));
+        $inner->add(new TextWidget('B'));
+
+        $root->add($inner);
+        $root->add(new TextWidget('After'));
+
+        $lines = $renderer->render($root, 10, 10);
+
+        // inner renders 2 lines (A + B), After renders 1 line — total 3 lines.
+        // If inner incorrectly expands to 10 rows, After is pushed off and total is > 3.
+        $this->assertCount(3, $lines);
+        $this->assertStringContainsString('A', AnsiUtils::stripAnsiCodes($lines[0]));
+        $this->assertStringContainsString('B', AnsiUtils::stripAnsiCodes($lines[1]));
+        $this->assertStringContainsString('After', AnsiUtils::stripAnsiCodes($lines[2]));
+    }
+
+    public function testVerticalAlignCenterInHorizontalContainerCentersShortChildren()
+    {
+        // In a horizontal container, VerticalAlign::Center must behave like CSS align-items: center —
+        // shorter children are vertically centered relative to the tallest child, not pinned to the top.
+        $renderer = new Renderer(new StyleSheet([
+            '.row' => new Style(direction: \Symfony\Component\Tui\Style\Direction::Horizontal, verticalAlign: VerticalAlign::Center),
+        ]));
+
+        // tall: 3-line vertical sub-container (top/METHOD/bottom)
+        // short: 1-line text (url)
+        $root = new ContainerWidget();
+
+        $row = new ContainerWidget();
+        $row->addStyleClass('row');
+
+        $tall = new ContainerWidget();
+        $tall->add(new TextWidget('top'));
+        $tall->add(new TextWidget('METHOD'));
+        $tall->add(new TextWidget('bottom'));
+
+        $short = new TextWidget('url');
+
+        $row->add($tall);
+        $row->add($short);
+        $root->add($row);
+
+        $lines = $renderer->render($root, 30, 10);
+
+        // $row is a non-expanded nested container — it renders exactly 3 lines (tallest child height).
+        // 'url' must appear on line 1 (center of 3), not line 0 (top).
+        $this->assertCount(3, $lines);
+        $this->assertStringNotContainsString('url', AnsiUtils::stripAnsiCodes($lines[0]), 'url must not be at the top');
+        $this->assertStringContainsString('url', AnsiUtils::stripAnsiCodes($lines[1]), 'url must be centered at line 1');
+        $this->assertStringNotContainsString('url', AnsiUtils::stripAnsiCodes($lines[2]), 'url must not be at the bottom');
+    }
 }

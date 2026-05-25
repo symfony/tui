@@ -43,6 +43,7 @@ final class RenderContext
         private readonly int $rows,
         ?Style $style = null,
         ?FontRegistry $fontRegistry = null,
+        private readonly bool $fillRows = false,
     ) {
         $this->style = $style ?? new Style();
         $this->fontRegistry = $fontRegistry ?? new FontRegistry();
@@ -69,11 +70,22 @@ final class RenderContext
     }
 
     /**
+     * Returns true when this widget should fill its allocated rows (root render or vertically-expanded).
+     *
+     * Used to gate VerticalAlign padding on vertical containers: non-expanded nested containers
+     * receive the parent's row budget as a maximum, not a target to fill.
+     */
+    public function shouldFillRows(): bool
+    {
+        return $this->fillRows;
+    }
+
+    /**
      * Create a new context with a different column count.
      */
     public function withColumns(int $columns): self
     {
-        return new self($columns, $this->rows, $this->style, $this->fontRegistry);
+        return new self($columns, $this->rows, $this->style, $this->fontRegistry, $this->fillRows);
     }
 
     /**
@@ -97,6 +109,6 @@ final class RenderContext
      */
     public function withStyle(Style $style): self
     {
-        return new self($this->columns, $this->rows, $style, $this->fontRegistry);
+        return new self($this->columns, $this->rows, $style, $this->fontRegistry, $this->fillRows);
     }
 }

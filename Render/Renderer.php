@@ -21,7 +21,6 @@ use Symfony\Component\Tui\Style\StyleSheet;
 use Symfony\Component\Tui\Widget\AbstractWidget;
 use Symfony\Component\Tui\Widget\ContainerWidget;
 use Symfony\Component\Tui\Widget\Figlet\FontRegistry;
-use Symfony\Component\Tui\Widget\ParentInterface;
 
 /**
  * Renders the widget tree with style resolution, layout, and chrome.
@@ -104,7 +103,7 @@ final class Renderer implements WidgetRendererInterface
      */
     public function render(ContainerWidget $root, int $columns, int $rows): array
     {
-        $context = new RenderContext($columns, $rows, null, $this->fontRegistry);
+        $context = new RenderContext($columns, $rows, null, $this->fontRegistry, fillRows: true);
         $this->currentColumns = $columns;
         $this->positionTracker->reset();
 
@@ -295,7 +294,9 @@ final class Renderer implements WidgetRendererInterface
         $hasVerticalAlign = null !== $verticalAlign;
         $positionsBeforeLayout = ($hasAlign || $hasVerticalAlign) ? $this->positionTracker->snapshotKeys() : null;
 
-        // Render children using layout engine
+        // Render children using layout engine.
+        // For horizontal containers, pass verticalAlign so layoutHorizontal can
+        // offset shorter children (align-items). For vertical containers it is unused.
         $childLines = $this->layoutEngine->layout(
             $children,
             $innerColumns,
@@ -303,19 +304,35 @@ final class Renderer implements WidgetRendererInterface
             $gap,
             $direction,
             $gapLine,
+            Direction::Horizontal === $direction ? $verticalAlign : null,
         );
 
         // Pop position stack
         $this->positionTracker->pop();
 
-        // Apply vertical alignment for child widgets and adjust tracked positions
-        if ($hasVerticalAlign && \count($childLines) < $innerRows) {
+        // Apply vertical alignment offset when VerticalAlign is set and the widget owns its rows.
+        if ($hasVerticalAlign && \count($childLines) < $innerRows
+            && ($context->shouldFillRows() || $widget->isVerticallyExpanded())
+        ) {
             if (0 < $verticalOffset = $this->layoutEngine->computeVerticalAlignOffset(\count($childLines), $innerRows, $verticalAlign)) {
                 $topPad = array_fill(0, $verticalOffset, '');
                 array_unshift($childLines, ...$topPad);
                 $this->positionTracker->shiftDescendantPositions($positionsBeforeLayout, 0, $verticalOffset);
             }
-            // Pad to fill remaining height so Tui::doRender() doesn't override alignment
+        }
+
+        // Pad to fill allocated rows so that chrome (e.g. background-color) covers the full height.
+        //
+        // A fill child is detected by isVerticallyExpanded()=true AND shouldFillRows()=false:
+        // layoutVertical creates a fresh RenderContext (fillRows=false) with exactly $childFillRows,
+        // so the child must fill those rows itself before chromeApplier runs — otherwise layoutVertical
+        // pads with bare empty strings that bypass chromeApplier and leave background incomplete.
+        //
+        // Root renders (shouldFillRows=true) pad only when VerticalAlign is explicitly set;
+        // without it the root returns its natural content height.
+        $shouldPad = ($widget->isVerticallyExpanded() && !$context->shouldFillRows())
+            || ($context->shouldFillRows() && $hasVerticalAlign);
+        if ($shouldPad && \count($childLines) < $innerRows) {
             while (\count($childLines) < $innerRows) {
                 $childLines[] = '';
             }
