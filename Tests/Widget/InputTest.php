@@ -450,6 +450,36 @@ class InputTest extends TestCase
         $this->assertSame(12, AnsiUtils::visibleWidth($lines[0]));
     }
 
+    public function testRenderWithPromptWiderThanAvailableColumns()
+    {
+        // When prompt is wider than available columns, it should be truncated
+        // to the column width, not returned verbatim.
+        $input = new InputWidget();
+        $input->setPrompt('This prompt is way too long to fit: ');
+        $input->setValue('hidden');
+
+        $columns = 10;
+        $lines = $input->render(new RenderContext($columns, 24));
+
+        $this->assertCount(1, $lines);
+        $this->assertSame($columns, AnsiUtils::visibleWidth($lines[0]));
+        // The truncated prompt should be a prefix of the original
+        $stripped = AnsiUtils::stripAnsiCodes($lines[0]);
+        $this->assertStringStartsWith('This', $stripped);
+    }
+
+    public function testRenderWithPromptWiderThanAvailableColumnsEmptyPrompt()
+    {
+        $input = new InputWidget();
+        $input->setPrompt('');
+        $input->setValue('hello');
+
+        $lines = $input->render(new RenderContext(5, 24));
+
+        $this->assertCount(1, $lines);
+        $this->assertSame(5, AnsiUtils::visibleWidth($lines[0]));
+    }
+
     public function testRenderScrollingWithMixedWidthCharacters()
     {
         $input = new InputWidget();

@@ -277,7 +277,7 @@ class InputWidget extends AbstractWidget implements FocusableInterface
         $availableColumns = $columns - AnsiUtils::visibleWidth($prompt);
 
         if ($availableColumns <= 0) {
-            return [$prompt];
+            return [AnsiUtils::truncateToWidth($prompt, $columns, '', true)];
         }
 
         $value = $this->line->getText();
