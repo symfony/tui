@@ -177,6 +177,26 @@ class AnsiUtilsTest extends TestCase
         $this->assertSame(10, AnsiUtils::visibleWidth($result));
     }
 
+    #[DataProvider('unicodeEllipsisProvider')]
+    public function testTruncateToWidthDoesNotSplitUnicodeEllipsis(string $ellipsis, int $maxWidth, string $expectedText, int $expectedWidth)
+    {
+        $result = AnsiUtils::truncateToWidth('Hello', $maxWidth, $ellipsis);
+
+        $this->assertTrue(mb_check_encoding($result, 'UTF-8'));
+        $this->assertSame($expectedWidth, AnsiUtils::visibleWidth($result));
+        $this->assertSame($expectedText, AnsiUtils::stripAnsiCodes($result));
+    }
+
+    /**
+     * @return iterable<string, array{string, int, string, int}>
+     */
+    public static function unicodeEllipsisProvider(): iterable
+    {
+        yield 'unicode ellipsis' => ['…', 1, '…', 1];
+        yield 'emoji ellipsis' => ['😀', 2, '😀', 2];
+        yield 'emoji ellipsis too wide' => ['😀', 1, '', 0];
+    }
+
     public function testSliceByColumn()
     {
         $this->assertSame('llo', AnsiUtils::sliceByColumn('Hello', 2, 3));

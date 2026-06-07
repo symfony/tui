@@ -290,7 +290,7 @@ final class AnsiUtils
         $targetWidth = $maxWidth - $ellipsisWidth;
 
         if ($targetWidth <= 0) {
-            return substr($ellipsis, 0, $maxWidth);
+            return '' === $ellipsis || $maxWidth <= 0 ? '' : self::truncateToWidth($ellipsis, $maxWidth, '', $pad);
         }
 
         // Fast path: pure printable ASCII, direct substr avoids sliceByColumn overhead
