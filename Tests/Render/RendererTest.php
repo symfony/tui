@@ -22,6 +22,7 @@ use Symfony\Component\Tui\Style\Direction;
 use Symfony\Component\Tui\Style\Padding;
 use Symfony\Component\Tui\Style\Style;
 use Symfony\Component\Tui\Style\StyleSheet;
+use Symfony\Component\Tui\Style\VerticalAlign;
 use Symfony\Component\Tui\Widget\AbstractWidget;
 use Symfony\Component\Tui\Widget\ContainerWidget;
 use Symfony\Component\Tui\Widget\ParentInterface;
@@ -828,6 +829,67 @@ class RendererTest extends TestCase
         // Right leaf: pane starts at col 20 (40/2), padding top=1, left=2
         $this->assertSame(1, $rightLeafRect->row);
         $this->assertSame(22, $rightLeafRect->col);
+    }
+
+    public function testWidgetPositionTrackingForHorizontalChildrenWithVerticalAlignCenter()
+    {
+        // Shorter children in a horizontal container with VerticalAlign::Center must have their
+        // tracked row offset by floor((maxRows - childHeight) / 2) so mouse clicks land correctly.
+        $renderer = new Renderer(new StyleSheet([
+            '.row' => new Style(direction: Direction::Horizontal, verticalAlign: VerticalAlign::Center),
+        ]));
+
+        $root = new ContainerWidget();
+        $row = new ContainerWidget();
+        $row->addStyleClass('row');
+
+        $tall = new ContainerWidget();
+        $tall->add(new TextWidget('top'));
+        $tall->add(new TextWidget('mid'));
+        $tall->add(new TextWidget('bot'));
+
+        $short = new TextWidget('url');
+
+        $row->add($tall);
+        $row->add($short);
+        $root->add($row);
+
+        $renderer->render($root, 40, 10);
+
+        $tallRect = $renderer->getWidgetRect($tall);
+        $shortRect = $renderer->getWidgetRect($short);
+
+        // tall is the tallest (3 lines) — no offset
+        $this->assertSame(0, $tallRect->row);
+
+        // short is 1 line, centered in 3: floor((3-1)/2) = 1
+        $this->assertSame(1, $shortRect->row);
+    }
+
+    public function testFillChildExpandsToAllocatedRowsWithoutVerticalAlign()
+    {
+        // A fill child must pad its output to fill its allocated rows even without VerticalAlign,
+        // so that chrome (background-color, border) covers the full height before layoutVertical
+        // can append bare empty strings that bypass the chrome applier.
+        $renderer = new Renderer();
+        $root = new ContainerWidget();
+        $root->expandVertically(true);
+
+        $fill = new ContainerWidget();
+        $fill->expandVertically(true);
+        $fill->add(new TextWidget('Content'));
+
+        $footer = new TextWidget('Footer');
+
+        $root->add($fill);
+        $root->add($footer);
+
+        $lines = $renderer->render($root, 40, 10);
+
+        // fill gets 9 rows, footer gets 1 — total must be 10
+        $this->assertCount(10, $lines);
+        $this->assertStringContainsString('Footer', AnsiUtils::stripAnsiCodes($lines[9]));
+        $this->assertStringContainsString('Content', AnsiUtils::stripAnsiCodes($lines[0]));
     }
 
     public function testVerticalLayoutDoesNotReRenderLeafChildrenInSecondPass()
