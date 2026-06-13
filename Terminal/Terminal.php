@@ -23,6 +23,8 @@ use Symfony\Component\Tui\Input\StdinBuffer;
  */
 final class Terminal implements TerminalInterface
 {
+    use TerminalEscapeTrait;
+
     private ?StdinBuffer $stdinBuffer = null;
 
     private string $initialSttyState = '';
@@ -179,46 +181,6 @@ final class Terminal implements TerminalInterface
     public function isKittyProtocolActive(): bool
     {
         return $this->kittyProtocolActive;
-    }
-
-    public function moveBy(int $lines): void
-    {
-        if ($lines > 0) {
-            $this->write("\x1b[{$lines}B");
-        } elseif ($lines < 0) {
-            $this->write("\x1b[".(-$lines).'A');
-        }
-    }
-
-    public function hideCursor(): void
-    {
-        $this->write("\x1b[?25l");
-    }
-
-    public function showCursor(): void
-    {
-        $this->write("\x1b[?25h");
-    }
-
-    public function clearLine(): void
-    {
-        $this->write("\x1b[2K");
-    }
-
-    public function clearFromCursor(): void
-    {
-        $this->write("\x1b[0J");
-    }
-
-    public function clearScreen(): void
-    {
-        $this->write("\x1b[2J\x1b[H");
-    }
-
-    public function setTitle(string $title): void
-    {
-        $safe = preg_replace("/[\x00-\x1f\x7f]|\xc2[\x80-\x9f]/", '', $title);
-        $this->write("\x1b]0;{$safe}\x07");
     }
 
     public function bell(): void
