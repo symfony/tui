@@ -18,6 +18,8 @@ use Symfony\Component\Tui\Exception\RenderException;
 use Symfony\Component\Tui\Render\ArrayLineBuffer;
 use Symfony\Component\Tui\Render\ConcatenatedLineBuffer;
 use Symfony\Component\Tui\Render\ScreenWriter;
+use Symfony\Component\Tui\Terminal\ScreenBuffer;
+use Symfony\Component\Tui\Terminal\TerminalInterface;
 use Symfony\Component\Tui\Terminal\VirtualTerminal;
 
 class ScreenWriterTest extends TestCase
@@ -652,5 +654,58 @@ class ScreenWriterTest extends TestCase
         $this->assertStringContainsString('Recovered', $output);
         $this->assertStringContainsString('OK', $output);
         $this->assertStringContainsString("\x1b[2J", $output, 'Screen should be cleared on recovery');
+    }
+
+    #[DataProvider('provideShrinkingOverflowingContent')]
+    public function testShrinkingOverflowingContentKeepsTheViewportAtTheBottom(array $shrunk)
+    {
+        $transcript = [];
+        for ($i = 0; $i < 100; ++$i) {
+            $transcript[] = 'transcript '.$i;
+        }
+
+        $screen = new ScreenBuffer(20, 5);
+        $output = '';
+        $terminal = $this->createStub(TerminalInterface::class);
+        $terminal->method('getColumns')->willReturn(20);
+        $terminal->method('getRows')->willReturn(5);
+        $terminal->method('isVirtual')->willReturn(false);
+        $terminal->method('write')->willReturnCallback(static function (string $data) use ($screen, &$output): void {
+            $screen->write($data);
+            $output .= $data;
+        });
+        $writer = new ScreenWriter($terminal);
+
+        $writer->writeFrame(new ArrayLineBuffer([...$transcript, 'A', 'B', 'C', 'D', 'E', 'F', 'G']));
+        $output = '';
+        $writer->writeFrame(new ArrayLineBuffer([...$transcript, ...$shrunk]));
+
+        // The terminal shows the last 5 lines of the content, whatever the shrink removed
+        $this->assertSame(\array_slice([...$transcript, ...$shrunk], -5), array_map('rtrim', $screen->getLines()));
+        $this->assertStringNotContainsString("\x1b[3J", $output, 'Scrollback should be preserved');
+    }
+
+    public function testShrinkingOverflowingContentDoesNotReadUnchangedPrefix()
+    {
+        $transcript = new CountingLineBuffer(100);
+        $terminal = $this->createStub(TerminalInterface::class);
+        $terminal->method('getColumns')->willReturn(20);
+        $terminal->method('getRows')->willReturn(5);
+        $terminal->method('isVirtual')->willReturn(false);
+        $writer = new ScreenWriter($terminal);
+
+        $writer->writeFrame(new ConcatenatedLineBuffer([$transcript, new ArrayLineBuffer(['A', 'B', 'C', 'D', 'E', 'F', 'G'])]));
+        $transcript->resetReadCount();
+        $writer->writeFrame(new ConcatenatedLineBuffer([$transcript, new ArrayLineBuffer(['A', 'B', 'C', 'D', 'E', 'F'])]));
+
+        $this->assertSame(0, $transcript->getReadCount());
+    }
+
+    public static function provideShrinkingOverflowingContent(): iterable
+    {
+        yield 'one trailing line removed' => [['A', 'B', 'C', 'D', 'E', 'F']];
+        yield 'three trailing lines removed' => [['A', 'B', 'C', 'D']];
+        yield 'two leading lines removed' => [['C', 'D', 'E', 'F', 'G']];
+        yield 'all but one line removed' => [['A']];
     }
 }
