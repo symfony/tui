@@ -16,6 +16,8 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Tui\Ansi\AnsiUtils;
 use Symfony\Component\Tui\Exception\RenderException;
 use Symfony\Component\Tui\Render\ScreenWriter;
+use Symfony\Component\Tui\Terminal\ScreenBuffer;
+use Symfony\Component\Tui\Terminal\TerminalInterface;
 use Symfony\Component\Tui\Terminal\VirtualTerminal;
 
 class ScreenWriterTest extends TestCase
@@ -619,5 +621,42 @@ class ScreenWriterTest extends TestCase
         $this->assertStringContainsString('Recovered', $output);
         $this->assertStringContainsString('OK', $output);
         $this->assertStringContainsString("\x1b[2J", $output, 'Screen should be cleared on recovery');
+    }
+
+    #[DataProvider('provideShrinkingOverflowingContent')]
+    public function testShrinkingOverflowingContentKeepsTheViewportAtTheBottom(array $shrunk)
+    {
+        $transcript = [];
+        for ($i = 0; $i < 100; ++$i) {
+            $transcript[] = 'transcript '.$i;
+        }
+
+        $screen = new ScreenBuffer(20, 5);
+        $output = '';
+        $terminal = $this->createStub(TerminalInterface::class);
+        $terminal->method('getColumns')->willReturn(20);
+        $terminal->method('getRows')->willReturn(5);
+        $terminal->method('isVirtual')->willReturn(false);
+        $terminal->method('write')->willReturnCallback(static function (string $data) use ($screen, &$output): void {
+            $screen->write($data);
+            $output .= $data;
+        });
+        $writer = new ScreenWriter($terminal);
+
+        $writer->writeLines([...$transcript, 'A', 'B', 'C', 'D', 'E', 'F', 'G']);
+        $output = '';
+        $writer->writeLines([...$transcript, ...$shrunk]);
+
+        // The terminal shows the last 5 lines of the content, whatever the shrink removed
+        $this->assertSame(\array_slice([...$transcript, ...$shrunk], -5), array_map('rtrim', $screen->getLines()));
+        $this->assertStringNotContainsString("\x1b[3J", $output, 'Scrollback should be preserved');
+    }
+
+    public static function provideShrinkingOverflowingContent(): iterable
+    {
+        yield 'one trailing line removed' => [['A', 'B', 'C', 'D', 'E', 'F']];
+        yield 'three trailing lines removed' => [['A', 'B', 'C', 'D']];
+        yield 'two leading lines removed' => [['C', 'D', 'E', 'F', 'G']];
+        yield 'all but one line removed' => [['A']];
     }
 }

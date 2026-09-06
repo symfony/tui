@@ -186,6 +186,14 @@ final class ScreenWriter
             return;
         }
 
+        // Overflowing content that shrinks moves every visible line up, which
+        // cannot be expressed by erasing the trailing ones.
+        if (!$this->terminal->isVirtual() && \count($this->previousLines) > $rows && $lineCount < \count($this->previousLines)) {
+            $this->redrawViewport($lines, $cursorPos, $rows);
+
+            return;
+        }
+
         if ($firstChanged >= $lineCount) {
             $this->handleDeletedLines($lines, $cursorPos, $rows);
 
@@ -257,6 +265,32 @@ final class ScreenWriter
         }
 
         $this->positionHardwareCursor($cursorPos, \count($newLines));
+        $this->previousLines = $newLines;
+        $this->previousWidth = $this->terminal->getColumns();
+    }
+
+    /**
+     * Redraws the bottom of the content over the whole screen.
+     *
+     * The scrollback is kept, so the lines that scrolled out stay reachable.
+     *
+     * @param string[]                                   $newLines
+     * @param array{row: int, col: int, shape: int}|null $cursorPos
+     */
+    private function redrawViewport(array $newLines, ?array $cursorPos, int $rows): void
+    {
+        $lineCount = \count($newLines);
+
+        $buffer = "\x1b[?2026h\x1b[2J\x1b[H"; // Begin synchronized output, clear screen and home
+        $buffer .= implode("\r\n", \array_slice($newLines, max(0, $lineCount - $rows), $rows));
+        $buffer .= "\x1b[?2026l"; // End synchronized output
+
+        $this->terminal->write($buffer);
+        $this->cursorRow = max(0, $lineCount - 1);
+        $this->hardwareCursorRow = $this->cursorRow;
+        $this->maxLinesRendered = $lineCount;
+
+        $this->positionHardwareCursor($cursorPos, $lineCount);
         $this->previousLines = $newLines;
         $this->previousWidth = $this->terminal->getColumns();
     }
